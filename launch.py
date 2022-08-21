@@ -20,17 +20,44 @@ __author__ = "tankalxat34 <tankalxat34@gmail.com>"
 PYPI_JSON = "https://pypi.org/pypi/%s/json"
 
 
-def _installPackage(package: str):
-    response = _getPyPiPackageInfo(package)["urls"][1]
-    if response != "__invalid_package_name__":
-        print("Connecting to", response["filename"])
-
-        # checking python version
+def _checkPythonVersion(response: str):
+    try:
         package_python_versions = list(re.findall("\d{0,2}\.{1,}\d{0,2}\.{0,}\d{0,2}", response["requires_python"]))
         if sys.version_info >= tuple(map(int, package_python_versions[0].split("."))):
-            print("The Python version is suitable")
+            return True
         else:
-            print("The Python version is not suitable!")
+            return False
+    except TypeError:
+        return None
+
+
+def _installPackage(package: str):
+    pypi_response = _getPyPiPackageInfo(package)
+    if pypi_response != "__invalid_package_name__":
+        response = pypi_response["urls"][0]
+        print("Connecting to", response["filename"])
+
+        python_version = _checkPythonVersion(response)
+        if python_version:
+            print("The Python version is suitable for installing this package")
+        elif python_version == False:
+            print("The Python version is not suitable for installing this package")
+        else:
+            print("Python version does not appear for installing")
+
+        if python_version in [True, None]:
+            print("Installing", response["filename"], end=" ")
+            # fileForInstall = urllib.request.urlretrieve(response["url"], response["filename"])
+            print("Completed!")
+
+            with zipfile.ZipFile(response["filename"], mode="r") as archive:
+                for file in archive.namelist():
+                    if file.split("/")[0] == pypi_response["info"]["name"]:
+                        archive.extract(file)
+                    else:
+                        break
+    else:
+        print(f"Package \"{package}\" does not existing on PyPi!")
 
 
 def _getPyPiPackageInfo(package: str):
@@ -40,7 +67,6 @@ def _getPyPiPackageInfo(package: str):
         for e in response:
             return json.loads(e)
     except urllib.error.HTTPError:
-        print(f"Package \"{package}\" does not existing on PyPi!")
         return "__invalid_package_name__"
 
 
@@ -51,15 +77,20 @@ COMMANDS = {
     "install": lambda c: _installPackage(c.split()[1])
 }
 
-command = "pipios"
-COMMANDS[command]()
+# command = "install uploadgrampyapi"
+# command = "install vk_api"
+command = "install requests"
+COMMANDS[command.split(" ")[0]](command)
 
-while command != "exit":
-    try:
-        command = str(input(">>>"))
-    except TypeError:
-        pass
-    try:
-        COMMANDS[command.split()[0]](command)
-    except KeyError:
-        command = str(input("Invalid command. Type help to get more information...\n>>>"))
+# command = "pipios"
+# COMMANDS[command]()
+
+# while command != "exit":
+#     try:
+#         command = str(input(">>>"))
+#     except TypeError:
+#         pass
+#     try:
+#         COMMANDS[command.split()[0]](command)
+#     except KeyError:
+#         command = str(input("Invalid command. Type help to get more information...\n>>>"))
