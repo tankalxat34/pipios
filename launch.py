@@ -67,8 +67,14 @@ def _installPackage(package: str):
 
 def _deletePackage(package: str):
     try:
-        shutil.rmtree(package)
-        print(f"The \"{package}\" package was removed successfully!")
+        if os.path.isdir(package) and os.path.exists(package + "/__init__.py"):
+            shutil.rmtree(package)
+            print(f"The \"{package}\" package was removed successfully!")
+        elif os.path.isfile(package + ".py"):
+            os.remove(package + ".py")
+            print(f"The \"{package}\" package was removed successfully!")
+        else:
+            print(f"The \"{package}\" package does not existing!")
     except FileNotFoundError:
         print(f"The \"{package}\" package does not existing!")
 
