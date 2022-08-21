@@ -62,7 +62,7 @@ class Package:
                 self.info = json.loads(e)
                 break
         except urllib.error.HTTPError:
-            raise NameError("This package does not existing on PyPi or package is not defined on your device!")
+            raise NameError("This package does not existing on PyPi or package does not existing on your device!")
     
     def _installedVersion(self):
         for folder in os.listdir(self.path_to_install):
@@ -141,14 +141,15 @@ PATH: {mtd["path_to_package"]}"""
     
     def install(self, showMessage: bool = False):
         if self.correctPythonVersion():
+            print("Installing", self.info['urls'][0]['filename'])
             whl_archive = BytesIO(urllib.request.urlopen(self.info["urls"][0]["url"]).read())
 
             with zipfile.ZipFile(file=whl_archive, mode="r") as archive:
                 for file in archive.namelist():
                     archive.extract(file, self.path_to_install)
-            
+
             if showMessage:
-                return f"Package '{self.info['urls'][0]['filename']}' successfully installed!"
+                return f"Package '{self.info['info']['name']}' v{self.info['info']['version']} successfully installed!"
             else:
                 return True
         else:
