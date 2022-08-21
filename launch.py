@@ -1,7 +1,6 @@
 """
 Launch the pipios console
 
-/private/var/mobile/Containers/Shared/AppGroup/CODE-CODE-CODE/Pythonista3/Documents/site-packages-3
 """
 
 import pathlib
@@ -21,6 +20,16 @@ __author__ = "tankalxat34 <tankalxat34@gmail.com>"
 
 PYPI_JSON = "https://pypi.org/pypi/%s/json"
 
+if True:
+    PATH_TO_INSTALL = os.getcwd()
+else:
+    if sys.platform == "ios":
+        # Pythonista
+        PATH_TO_INSTALL = sys.path[1]
+    else:
+        PATH_TO_INSTALL = sys.path[3]
+
+print(PATH_TO_INSTALL)
 
 def _checkPythonVersion(response: str):
     try:
@@ -33,7 +42,7 @@ def _checkPythonVersion(response: str):
         return None
 
 
-def _installPackage(package: str):
+def _installPackage(package: str, path_to_install: str = PATH_TO_INSTALL):
     pypi_response = _getPyPiPackageInfo(package)
     if pypi_response != "__invalid_package_name__":
         response = pypi_response["urls"][0]
@@ -53,29 +62,26 @@ def _installPackage(package: str):
 
             with zipfile.ZipFile(file=whl_archive, mode="r") as archive:
                 for file in archive.namelist():
-                    if "/" in file:
-                        if file.split("/")[0] == package:
-                            archive.extract(file)
-                        else:
-                            break
-                    else:
-                        archive.extract(file)
+                    archive.extract(file, path_to_install)
             print(f"The \"{package}\" package was installed successfully!")
     else:
         print(f"Package \"{package}\" does not existing on PyPi!")
 
 
-def _deletePackage(package: str):
-    try:
-        if os.path.isdir(package) and os.path.exists(package + "/__init__.py"):
-            shutil.rmtree(package)
-            print(f"The \"{package}\" package was removed successfully!")
-        elif os.path.isfile(package + ".py"):
-            os.remove(package + ".py")
-            print(f"The \"{package}\" package was removed successfully!")
-        else:
-            print(f"The \"{package}\" package does not existing!")
-    except FileNotFoundError:
+def _deletePackage(package: str, path_to_install: str = PATH_TO_INSTALL):
+    # try:
+    counterFiles = 0
+    for file in os.listdir(path_to_install):
+        if package in file or package.lower() in file.lower():
+            try:
+                # trying remove as dir
+                shutil.rmtree(file)
+            except Exception:
+                os.remove(file)
+            counterFiles += 1
+    if counterFiles:
+        print(f"The \"{package}\" package was removed successfully!")
+    else:
         print(f"The \"{package}\" package does not existing!")
 
 

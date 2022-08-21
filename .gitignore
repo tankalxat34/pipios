@@ -156,3 +156,4 @@ test.py
 *.gz
 *.tar.gz
 */
+*.jpg
