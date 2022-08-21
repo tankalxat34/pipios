@@ -4,6 +4,7 @@ PipIOS - simple tool for managing Python packages in IOS application Pythonista
 Commands for work with tool
     install     Can install the requested package from PyPi on your IOS device (shortly as `i`)
     info        Can show you information about the requested package (shortly as `p`)
+    version     Print version of the requested package (shortly as `v`)
     delete      Can delete the requested package (shortly as `d`)
     list        Can show you all packages that installed on your device (shortly as `l`)
     help        Show this message
@@ -23,6 +24,7 @@ import pathlib
 import os
 from io import BytesIO
 import shutil
+from tkinter import COMMAND
 import zipfile
 import urllib
 import urllib.request
@@ -60,7 +62,50 @@ class Package:
                 self.info = json.loads(e)
                 break
         except urllib.error.HTTPError:
-            raise NameError("This package does not existing on PyPi")
+            raise NameError("This package does not existing on PyPi or package is not defined on your device!")
+    
+    def _installedVersion(self):
+        for folder in os.listdir(self.path_to_install):
+            if self.name in folder and ".dist-info" in folder:
+                return re.findall("\d{1,}\.\d{1,}\.\d{1,}", folder)[0]
+        return "This package doesnt have any version!"
+    
+    def _parseMetadata(self):
+        path_to_package = self.path_to_install + "/" + self.name
+        with open(path_to_package +  "-" + self._installedVersion() + ".dist-info/METADATA") as file:
+            content = file.readlines()
+        
+        dct = dict()
+
+        for line in content:
+            key = line.split(":")[0].lower()
+            if line != "\n":
+                value = "".join(line.split(":")[1:])
+                try:
+                    dct[key] += value
+                except KeyError:
+                    dct[key] = value
+            else:
+                break
+        
+        dct["path_to_package"] = path_to_package
+        
+        for key in dct.keys():
+            dct[key] = dct[key].strip()
+        
+        return dct
+    
+    def showInfo(self):
+        try:
+            mtd = self._parseMetadata()
+            return f"""NAME: {mtd["name"]} v{mtd["version"]}
+AUTHOR: {mtd["author"]} 
+    EMAIL: {mtd["author-email"]}
+DESCRIPTION: {mtd["summary"]}
+HOME-PAGE: {mtd["home-page"]}
+PATH: {mtd["path_to_package"]}"""
+        except Exception:
+            return "Package does not have any information about itself or package is not defined!"
 
     def get_pypi(self):
         return self.info
@@ -110,87 +155,18 @@ class Package:
             raise ValueError("Invalid Python version to install this package!")
 
 
-
-def _checkPythonVersion(response: str):
-    try:
-        package_python_versions = list(re.findall(
-            "\d{0,2}\.{1,}\d{0,2}\.{0,}\d{0,2}", response["requires_python"]))
-        if sys.version_info >= tuple(map(int, package_python_versions[0].split("."))):
-            return True
-        else:
-            return False
-    except TypeError:
-        return None
-
-
-def _installPackage(package: str, path_to_install: str = PATH_TO_INSTALL):
-    pypi_response = _getPyPiPackageInfo(package)
-    if pypi_response != "__invalid_package_name__":
-        response = pypi_response["urls"][0]
-        print("Connecting to", response["filename"])
-
-        python_version = _checkPythonVersion(response)
-        if python_version:
-            print("The Python version is suitable for installing this package")
-        elif python_version == False:
-            print("The Python version is not suitable for installing this package")
-        else:
-            print("Python version does not appear for installing")
-
-        if python_version in [True, None]:
-            print("Installing", response["filename"])
-            whl_archive = BytesIO(
-                urllib.request.urlopen(response["url"]).read())
-
-            with zipfile.ZipFile(file=whl_archive, mode="r") as archive:
-                for file in archive.namelist():
-                    archive.extract(file, path_to_install)
-            print(f"The \"{package}\" package was installed successfully!")
-    else:
-        print(f"Package \"{package}\" does not existing on PyPi!")
-
-
-def _deletePackage(package: str, path_to_install: str = PATH_TO_INSTALL + "/"):
-    # try:
-    counterFiles = 0
-    for file in os.listdir(path_to_install):
-        if package in file or package.lower() in file.lower():
-            try:
-                # trying remove as dir
-                shutil.rmtree(path_to_install + file)
-            except Exception:
-                os.remove(path_to_install + file)
-            counterFiles += 1
-    if counterFiles:
-        print(f"The \"{package}\" package was removed successfully!")
-    else:
-        print(f"The \"{package}\" package does not existing!")
-
-
-def _getPyPiPackageInfo(package: str):
-    """Getting info in JSON format"""
-    try:
-        response = urllib.request.urlopen(PYPI_JSON % package)
-        for e in response:
-            return json.loads(e)
-    except urllib.error.HTTPError:
-        return "__invalid_package_name__"
-
-
-def _getPackagesList(path_to_packages: str = PATH_TO_INSTALL + "/"):
-    for package in os.listdir(path_to_packages):
-        if os.path.isdir(path_to_packages + package):
-            print(package)
-
-
 COMMANDS = {
-    "pipios": lambda c: print("Hello from PipIOS! Please type 'i <package_name>' or 'help' to get more information!"),
-    "help": lambda c: print(__doc__),
-    "exit": lambda c: sys.exit(),
-    "i": lambda c: print(Package(c.split()[1]).install(True)),
-    "install": lambda c: print(Package(c.split()[1]).install(True)),
-    "d": lambda c: print(Package(c.split()[1]).delete(True)),
-    "delete": lambda c: print(Package(c.split()[1]).delete(True)),
+    "pipios":   lambda c: print("Hello from PipIOS! Please type 'i <package_name>' or 'help' to get more information!"),
+    "help":     lambda c: print(__doc__),
+    "exit":     lambda c: sys.exit(),
+    "i":        lambda c: print(Package(c.split()[1]).install(True)),
+    "install":  lambda c: print(Package(c.split()[1]).install(True)),
+    "d":        lambda c: print(Package(c.split()[1]).delete(True)),
+    "delete":   lambda c: print(Package(c.split()[1]).delete(True)),
+    "v":        lambda c: print(Package(c.split()[1])._installedVersion()),
+    "version":  lambda c: print(Package(c.split()[1])._installedVersion()),
+    "p":        lambda c: print(Package(c.split()[1]).showInfo()),
+    "info":     lambda c: print(Package(c.split()[1]).showInfo()),
 }
 
 # command = "install uploadgrampyapi"
@@ -198,8 +174,10 @@ COMMANDS = {
 # command = "install requests"
 command = "pipios"
 # command = "pipios"
-COMMANDS[command](command)
+COMMANDS[command.split()[0]](command)
 
+# p = Package("qwerty")
+# print(p.showInfo())
 
 while command != "exit":
     try:
