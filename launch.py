@@ -106,4 +106,7 @@ while command != "exit":
     try:
         COMMANDS[command.split()[0]](command)
     except KeyError:
-        command = str(input("Invalid command. Type help to get more information...\n>>>"))
+        # command = str(input("Invalid command. Type help to get more information...\n>>>"))
+        print("Invalid command. Type help to get more information!")
+    
+    print("")
