@@ -50,14 +50,45 @@ else:
 print(PATH_TO_INSTALL)
 
 
+class Command:
+    def __init__(self, command):
+        """Class for parsing command in PipIOS terminal"""
+        self.command = command.split()
+
+        self.flags = list()
+        self.params = dict()
+        self.names = list()
+
+        for word in self.command[1:]:
+            if word[0:2] == "--":
+                self.params[word[2:].split("=")[0].strip()] = word[2:].split("=")[1].strip()
+            elif word[0] == "-":
+                self.flags.append(word[1])
+            else:
+                self.names.append(word)
+
+    def get_flags(self):
+        """Return list of flags from command"""
+        return self.flags
+    
+    def get_params(self):
+        """Return dictionary with key:value pairs"""
+        return self.params
+    
+    def get_names(self):
+        """Return list of names from command"""
+        return self.names
+
+
 class Package:
-    def __init__(self, name: str, path_to_install: str = PATH_TO_INSTALL):
+    def __init__(self, command: Command, path_to_install: str = PATH_TO_INSTALL):
         """Class for package-object"""
-        self.name = name
+        self.command = command
+        self.name = self.command.get_names()[0]
         self.path_to_install = path_to_install
 
         try:
-            self.response = urllib.request.urlopen(PYPI_JSON % name)
+            self.response = urllib.request.urlopen(PYPI_JSON % self.name)
             for e in self.response:
                 self.info = json.loads(e)
                 break
@@ -67,7 +98,7 @@ class Package:
     def _installedVersion(self):
         for folder in os.listdir(self.path_to_install):
             if self.name in folder and ".dist-info" in folder:
-                return re.findall("\d{1,}\.\d{1,}\.\d{1,}", folder)[0]
+                return folder.split("-")[1][:-5]
         return "This package doesnt have any version!"
     
     def _parseMetadata(self):
@@ -98,13 +129,11 @@ class Package:
     def showInfo(self):
         try:
             mtd = self._parseMetadata()
-            return f"""NAME: {mtd["name"]} v{mtd["version"]}
-AUTHOR: {mtd["author"]} 
-    EMAIL: {mtd["author-email"]}
-DESCRIPTION: {mtd["summary"]}
-HOME-PAGE: {mtd["home-page"]}
-PATH: {mtd["path_to_package"]}"""
-        except Exception:
+            result = ""
+            for key in mtd.keys():
+                result += f"{key}: {mtd[key]}\n"
+            return result
+        except Exception as e:
             return "Package does not have any information about itself or package is not defined!"
 
     def get_pypi(self):
@@ -140,34 +169,44 @@ PATH: {mtd["path_to_package"]}"""
                 return (f"The \"{self.name}\" package does not existing!")
     
     def install(self, showMessage: bool = False):
-        if self.correctPythonVersion():
+        self.delete()
+        if "i" in self.command.get_flags():
+            print("Ignore Python version enabled!")
+        if not self.correctPythonVersion() and not "i" in self.command.get_flags():
+            raise ValueError("Invalid Python version to install this package!")
+
+        if "version" in self.command.get_params().keys():
+            print("Installing", self.info['releases'][self.command.get_params()['version']][0]['filename'])
+            whl_archive = BytesIO(urllib.request.urlopen(self.info["releases"][self.command.get_params()["version"]][0]["url"]).read())
+        else:
             print("Installing", self.info['urls'][0]['filename'])
             whl_archive = BytesIO(urllib.request.urlopen(self.info["urls"][0]["url"]).read())
 
-            with zipfile.ZipFile(file=whl_archive, mode="r") as archive:
-                for file in archive.namelist():
-                    archive.extract(file, self.path_to_install)
+        with zipfile.ZipFile(file=whl_archive, mode="r") as archive:
+            for file in archive.namelist():
+                archive.extract(file, self.path_to_install)
 
-            if showMessage:
-                return f"Package '{self.info['info']['name']}' v{self.info['info']['version']} successfully installed!"
-            else:
-                return True
+        if showMessage:
+            if "version" in self.command.get_params().keys():
+                return f"Package '{self.info['releases'][self.command.get_params()['version']][0]['filename']}' v{self.command.get_params()['version']} successfully installed!"
+            return f"Package '{self.info['info']['name']}' v{self.info['info']['version']} successfully installed!"
         else:
-            raise ValueError("Invalid Python version to install this package!")
+            return True
+        
 
 
 COMMANDS = {
     "pipios":   lambda c: print("Hello from PipIOS! Please type 'i <package_name>' or 'help' to get more information!"),
     "help":     lambda c: print(__doc__),
     "exit":     lambda c: sys.exit(),
-    "i":        lambda c: print(Package(c.split()[1]).install(True)),
-    "install":  lambda c: print(Package(c.split()[1]).install(True)),
-    "d":        lambda c: print(Package(c.split()[1]).delete(True)),
-    "delete":   lambda c: print(Package(c.split()[1]).delete(True)),
-    "v":        lambda c: print(Package(c.split()[1])._installedVersion()),
-    "version":  lambda c: print(Package(c.split()[1])._installedVersion()),
-    "p":        lambda c: print(Package(c.split()[1]).showInfo()),
-    "info":     lambda c: print(Package(c.split()[1]).showInfo()),
+    "i":        lambda c: print(Package(Command(c)).install(True)),
+    "install":  lambda c: print(Package(Command(c)).install(True)),
+    "d":        lambda c: print(Package(Command(c)).delete(True)),
+    "delete":   lambda c: print(Package(Command(c)).delete(True)),
+    "v":        lambda c: print(Package(Command(c))._installedVersion()),
+    "version":  lambda c: print(Package(Command(c))._installedVersion()),
+    "p":        lambda c: print(Package(Command(c)).showInfo()),
+    "info":     lambda c: print(Package(Command(c)).showInfo()),
 }
 
 # command = "install uploadgrampyapi"
