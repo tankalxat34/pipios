@@ -18,8 +18,6 @@ Paramethers for work with commands
 
 Flags for work with commands
     -i          Ignore any conflicts with Python versions
-    -d          Delete package with depencies
-    -v          Show versions of installed packages
 
 (c) tankalxat34 - 2022
 https://github.com/tankalxat34/pipios
