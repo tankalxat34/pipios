@@ -11,7 +11,7 @@ Commands for work with tool
     exit        Exit from tool
 
 Paramethers for work with commands
-    --version   Install the package of the specified version
+    ~version   Install the package of the specified version
 
 Flags for work with commands
     -i          Ignore any conflicts with Python versions   
@@ -24,7 +24,6 @@ import pathlib
 import os
 from io import BytesIO
 import shutil
-from tkinter import COMMAND
 import zipfile
 import urllib
 import urllib.request
@@ -38,7 +37,7 @@ __author__ = "tankalxat34 <tankalxat34@gmail.com>"
 
 PYPI_JSON = "https://pypi.org/pypi/%s/json"
 
-if True:
+if False:
     PATH_TO_INSTALL = os.getcwd() + "/test"
 else:
     if sys.platform == "ios":
@@ -60,8 +59,8 @@ class Command:
         self.names = list()
 
         for word in self.command[1:]:
-            if word[0:2] == "--":
-                self.params[word[2:].split("=")[0].strip()] = word[2:].split("=")[1].strip()
+            if word[0] == "~":
+                self.params[word[1:].split("=")[0].strip()] = word[2:].split("=")[1].strip()
             elif word[0] == "-":
                 self.flags.append(word[1])
             else:
@@ -169,14 +168,15 @@ class Package:
                 return (f"The \"{self.name}\" package does not existing!")
     
     def install(self, showMessage: bool = False):
-        self.delete()
+        self.delete(True)
+        print(self.command.get_params())
         if "i" in self.command.get_flags():
             print("Ignore Python version enabled!")
         if not self.correctPythonVersion() and not "i" in self.command.get_flags():
             raise ValueError("Invalid Python version to install this package!")
 
         if "version" in self.command.get_params().keys():
-            print("Installing", self.info['releases'][self.command.get_params()['version']][0]['filename'])
+            print("Installing user version", self.info['releases'][self.command.get_params()['version']][0]['filename'])
             whl_archive = BytesIO(urllib.request.urlopen(self.info["releases"][self.command.get_params()["version"]][0]["url"]).read())
         else:
             print("Installing", self.info['urls'][0]['filename'])
