@@ -9,6 +9,7 @@ Commands for work with tool
     delete      Delete the requested package (shortly as `d`)
     list        Show you all packages that installed on your device (shortly as `l`)
     count       Show count of installed packages
+    releases    Show list of versions for the requested package
     help        Show this message
     exit        Exit from tool
 
@@ -169,6 +170,12 @@ class Package:
     def get_pypi(self):
         return self.info
 
+    def releases(self):
+        result = []
+        for release in self.info["releases"].keys():
+            result.append(release)
+        return result
+
     def correctPythonVersion(self):
         try:
             package_python_versions = list(re.findall("\d{0,2}\.{1,}\d{0,2}\.{0,}\d{0,2}", self.info["urls"][0]["requires_python"]))
@@ -198,7 +205,7 @@ class Package:
     def delete(self, showMessage: bool = False):
         counterFiles = 0
         for file in os.listdir(self.path_to_install):
-            if self.name in file or self.name.lower() in file.lower():
+            if self.name.lower() == file.lower() or f"{self.name.lower()}-{self._installedVersion()}.dist-info" == file.lower():
                 try:
                     # trying remove as dir
                     shutil.rmtree(self.path_to_install + "/" + file)
@@ -254,17 +261,11 @@ COMMANDS = {
     "info":     lambda c: print(Package(Command(c)).showInfo()),
     "list":     lambda c: print("\n".join(PackagesDir(Command(c)).list())),
     "count":    lambda c: print(PackagesDir(Command(c)).count()),
+    "releases": lambda c: print("\n".join(Package(Command(c)).releases()))
 }
 
-# command = "install uploadgrampyapi"
-# command = "install vk_api"
-# command = "install requests"
 command = "pipios"
-# command = "pipios"
 COMMANDS[command.split()[0]](command)
-
-# p = Package("qwerty")
-# print(p.showInfo())
 
 while command != "exit":
     try:
