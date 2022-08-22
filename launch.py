@@ -2,19 +2,23 @@
 PipIOS - simple tool for managing Python packages in IOS application Pythonista
 
 Commands for work with tool
-    install     Can install the requested package from PyPi on your IOS device (shortly as `i`)
-    info        Can show you information about the requested package (shortly as `p`)
+    install     Install or update the requested package from PyPi on your IOS device (shortly as `i`)
+    update      Update the requested package from PyPi on your IOS device to the last version (shortly as `u`)
+    info        Show you information about the requested package (shortly as `p`)
     version     Print version of the requested package (shortly as `v`)
-    delete      Can delete the requested package (shortly as `d`)
-    list        Can show you all packages that installed on your device (shortly as `l`)
+    delete      Delete the requested package (shortly as `d`)
+    list        Show you all packages that installed on your device (shortly as `l`)
+    count       Show count of installed packages
     help        Show this message
     exit        Exit from tool
 
 Paramethers for work with commands
-    ~version   Install the package of the specified version
+    ~version    Install the package of the specified version
 
 Flags for work with commands
-    -i          Ignore any conflicts with Python versions   
+    -i          Ignore any conflicts with Python versions
+    -d          Delete package with depencies
+    -v          Show versions of installed packages
 
 (c) tankalxat34 - 2022
 https://github.com/tankalxat34/pipios
@@ -37,7 +41,7 @@ __author__ = "tankalxat34 <tankalxat34@gmail.com>"
 
 PYPI_JSON = "https://pypi.org/pypi/%s/json"
 
-if False:
+if True:
     PATH_TO_INSTALL = os.getcwd() + "/test"
 else:
     if sys.platform == "ios":
@@ -60,7 +64,7 @@ class Command:
 
         for word in self.command[1:]:
             if word[0] == "~":
-                self.params[word[1:].split("=")[0].strip()] = word[2:].split("=")[1].strip()
+                self.params[word[1:].split("=")[0].strip()] = word[1:].split("=")[1].strip()
             elif word[0] == "-":
                 self.flags.append(word[1])
             else:
@@ -77,6 +81,33 @@ class Command:
     def get_names(self):
         """Return list of names from command"""
         return self.names
+
+
+
+class PackagesDir:
+    def __init__(self, command: Command, path: str = PATH_TO_INSTALL) -> None:
+        self.path = path
+        self.command = command
+        print(self.command.get_flags())
+    
+    def list(self):
+        result = list()
+        for element in os.listdir(self.path):
+            if ".dist-info" not in element:
+                if ".py" in element:
+                    package = element[:-3]
+                else:
+                    package = element
+
+                if "v" in self.command.get_flags():
+                    package += f" {Package('', package)._installedVersion()}"
+
+                result.append(package.lower())
+        result.sort()
+        return result
+    
+    def count(self):
+        return len(self.list())
 
 
 class Package:
@@ -102,7 +133,7 @@ class Package:
     
     def _parseMetadata(self):
         path_to_package = self.path_to_install + "/" + self.name
-        with open(path_to_package +  "-" + self._installedVersion() + ".dist-info/METADATA") as file:
+        with open(path_to_package +  "-" + self._installedVersion() + ".dist-info/METADATA", encoding="UTF-8") as file:
             content = file.readlines()
         
         dct = dict()
@@ -147,9 +178,22 @@ class Package:
                 return False
         except TypeError:
             return True
+    
+    def update(self, showMessage: bool = False):
+        old_version = self._installedVersion()
+        if self.is_installed():
+            self.install()
+            new_version = self._installedVersion()
+            if showMessage:
+                if old_version != new_version:
+                    return (f"The \"{self.name}\" package has been updated: {old_version} -> {new_version}")
+                else:
+                    return (f"The \"{self.name}\" package does not updated because you are using the last version of this package!")
+        else:
+            return (f"The \"{self.name}\" package does not existing!")
 
     def is_installed(self):
-        return self.name in os.listdir(self.path_to_install)
+        return self.name in " ".join(os.listdir(self.path_to_install))
     
     def delete(self, showMessage: bool = False):
         counterFiles = 0
@@ -169,7 +213,6 @@ class Package:
     
     def install(self, showMessage: bool = False):
         self.delete(True)
-        print(self.command.get_params())
         if "i" in self.command.get_flags():
             print("Ignore Python version enabled!")
         if not self.correctPythonVersion() and not "i" in self.command.get_flags():
@@ -188,7 +231,7 @@ class Package:
 
         if showMessage:
             if "version" in self.command.get_params().keys():
-                return f"Package '{self.info['releases'][self.command.get_params()['version']][0]['filename']}' v{self.command.get_params()['version']} successfully installed!"
+                return f"Package '{self.info['info']['name']}' v{self.command.get_params()['version']} successfully installed!"
             return f"Package '{self.info['info']['name']}' v{self.info['info']['version']} successfully installed!"
         else:
             return True
@@ -201,12 +244,16 @@ COMMANDS = {
     "exit":     lambda c: sys.exit(),
     "i":        lambda c: print(Package(Command(c)).install(True)),
     "install":  lambda c: print(Package(Command(c)).install(True)),
+    "u":        lambda c: print(Package(Command(c)).update(True)),
+    "update":   lambda c: print(Package(Command(c)).update(True)),
     "d":        lambda c: print(Package(Command(c)).delete(True)),
     "delete":   lambda c: print(Package(Command(c)).delete(True)),
     "v":        lambda c: print(Package(Command(c))._installedVersion()),
     "version":  lambda c: print(Package(Command(c))._installedVersion()),
     "p":        lambda c: print(Package(Command(c)).showInfo()),
     "info":     lambda c: print(Package(Command(c)).showInfo()),
+    "list":     lambda c: print("\n".join(PackagesDir(Command(c)).list())),
+    "count":    lambda c: print(PackagesDir(Command(c)).count()),
 }
 
 # command = "install uploadgrampyapi"
@@ -229,4 +276,4 @@ while command != "exit":
 
         print("")
     except Exception as e:
-        print(e)
+        print(e, e.with_traceback)
