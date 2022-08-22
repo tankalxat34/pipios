@@ -1,7 +1,6 @@
 # PipIOS
 **PipIOS** - is a simple tool for managing Python packages in IOS application [Pythonista](http://omz-software.com/pythonista/).
 
-<img src="https://github.com/tankalxat34/pipios/raw/content/IMG_5262.PNG" alt="image1" width=250px>
 <img src="https://github.com/tankalxat34/pipios/raw/content/IMG_5265.PNG" alt="image1" width=250px>
 
 # Install
