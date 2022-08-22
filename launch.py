@@ -42,14 +42,12 @@ __author__ = "tankalxat34 <tankalxat34@gmail.com>"
 
 PYPI_JSON = "https://pypi.org/pypi/%s/json"
 
-if True:
-    PATH_TO_INSTALL = os.getcwd() + "/test"
+
+if sys.platform == "ios":
+    # Pythonista
+    PATH_TO_INSTALL = sys.path[1]
 else:
-    if sys.platform == "ios":
-        # Pythonista
-        PATH_TO_INSTALL = sys.path[1]
-    else:
-        PATH_TO_INSTALL = sys.path[3]
+    raise ValueError("You're platform is not IOS!")
 
 print(PATH_TO_INSTALL)
 
