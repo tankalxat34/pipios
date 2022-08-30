@@ -8,9 +8,7 @@
 Create new file and paste there this code:
 
 ```py
-import urllib.request
-with open("pipios.py", "w", encoding="UTF-8") as file:
-    file.write(urllib.request.urlopen("https://raw.githubusercontent.com/tankalxat34/pipios/main/launch.py").read().decode("utf-8"))
+import urllib.request; open("pipios.py", "w", encoding="UTF-8").write(urllib.request.urlopen("https://bit.ly/3R4y9gk").read().decode("utf-8"))
 ```
 
 # Commands
