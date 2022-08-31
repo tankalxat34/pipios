@@ -49,11 +49,11 @@ if sys.platform == "ios":
     PATH_TO_INSTALL = sys.path[1]
 # elif sys.platform == "win32":
 #     PATH_TO_INSTALL = sys.path[3] + "\\site-packages"
-# else:
-#     raise ValueError("You're platform is not IOS or Windows!")
+else:
+    raise ValueError("You're platform is not IOS or Windows!")
 
 # PATH_TO_INSTALL = sys.path[3] + "\\site-packages"
-PATH_TO_INSTALL = os.getcwd() + "\\test"
+# PATH_TO_INSTALL = os.getcwd() + "\\test"
 
 
 class Command:
