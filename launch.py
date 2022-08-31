@@ -11,6 +11,8 @@ Commands for work with tool
     count       Show count of installed packages
     releases    Show list of versions for the requested package
     help        Show this message
+    path        Show path to packages directory
+    size        Get size of the package in KB
     exit        Exit from tool
 
 Paramethers for work with commands
@@ -18,6 +20,7 @@ Paramethers for work with commands
 
 Flags for work with commands
     -i          Ignore any conflicts with Python versions
+    -f          Get full information about package
 
 (c) tankalxat34 - 2022
 https://github.com/tankalxat34/pipios
@@ -34,20 +37,23 @@ import json
 import sys
 import re
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "tankalxat34 <tankalxat34@gmail.com>"
 
 
 PYPI_JSON = "https://pypi.org/pypi/%s/json"
-
+KEYS_FOR_GET_INFO = ["name", "version", "summary", "author", "home-page", "path-to-package"]
 
 if sys.platform == "ios":
     # Pythonista
     PATH_TO_INSTALL = sys.path[1]
-else:
-    raise ValueError("You're platform is not IOS!")
+# elif sys.platform == "win32":
+#     PATH_TO_INSTALL = sys.path[3] + "\\site-packages"
+# else:
+#     raise ValueError("You're platform is not IOS or Windows!")
 
-print(PATH_TO_INSTALL)
+# PATH_TO_INSTALL = sys.path[3] + "\\site-packages"
+PATH_TO_INSTALL = os.getcwd() + "\\test"
 
 
 class Command:
@@ -85,12 +91,14 @@ class PackagesDir:
     def __init__(self, command: Command, path: str = PATH_TO_INSTALL) -> None:
         self.path = path
         self.command = command
-        print(self.command.get_flags())
     
+    def is_package(self):
+        lst = [".dist-info", ".egg-info", ".egg", "__"]
+
     def list(self):
         result = list()
         for element in os.listdir(self.path):
-            if ".dist-info" not in element:
+            if ".dist-info" not in element and ".egg-info" not in element and ".egg" not in element:
                 if ".py" in element:
                     package = element[:-3]
                 else:
@@ -113,6 +121,7 @@ class Package:
         self.command = command
         self.name = self.command.get_names()[0]
         self.path_to_install = path_to_install
+        self.path_to_package = self.path_to_install + "/" + self.name
 
         try:
             self.response = urllib.request.urlopen(PYPI_JSON % self.name)
@@ -128,9 +137,32 @@ class Package:
                 return folder.split("-")[1][:-5]
         return "This package doesnt have any version!"
     
+    @property
+    def dist_info(self):
+        return f"{self.name.lower()}-{self._installedVersion()}.dist-info"
+
+    @property
+    def size(self):
+        if self.is_installed():
+            return self.get_size()
+        else:
+            return "Package does not existing on your device!"
+
+    def get_size(self):
+        total_size = 0
+        for dirpath, dirnames, filenames in os.walk(self.path_to_package):
+            for f in filenames:
+                fp = os.path.join(dirpath, f)
+                # skip if it is symbolic link
+                if not os.path.islink(fp):
+                    total_size += os.path.getsize(fp)
+        try:
+            return total_size + os.path.getsize(self.path_to_package.lower() + ".py") / 1024
+        except Exception:
+            return total_size / 1024
+
     def _parseMetadata(self):
-        path_to_package = self.path_to_install + "/" + self.name
-        with open(path_to_package +  "-" + self._installedVersion() + ".dist-info/METADATA", encoding="UTF-8") as file:
+        with open(self.path_to_package +  "-" + self._installedVersion() + ".dist-info/METADATA", encoding="UTF-8") as file:
             content = file.readlines()
         
         dct = dict()
@@ -146,7 +178,7 @@ class Package:
             else:
                 break
         
-        dct["path_to_package"] = path_to_package
+        dct["path-to-package"] = self.path_to_package
         
         for key in dct.keys():
             dct[key] = dct[key].strip()
@@ -158,6 +190,9 @@ class Package:
             mtd = self._parseMetadata()
             result = ""
             for key in mtd.keys():
+                if "f" not in self.command.get_flags():
+                    if key not in KEYS_FOR_GET_INFO:
+                        continue
                 result += f"{key}: {mtd[key]}\n"
             return result
         except Exception as e:
@@ -201,7 +236,7 @@ class Package:
     def delete(self, showMessage: bool = False):
         counterFiles = 0
         for file in os.listdir(self.path_to_install):
-            if self.name.lower() == file.lower() or f"{self.name.lower()}-{self._installedVersion()}.dist-info" == file.lower():
+            if self.name.lower() + ".py" == file.lower() or self.name.lower() == file.lower() or f"{self.name.lower()}-{self._installedVersion()}.dist-info" == file.lower():
                 try:
                     # trying remove as dir
                     shutil.rmtree(self.path_to_install + "/" + file)
@@ -257,7 +292,9 @@ COMMANDS = {
     "info":     lambda c: print(Package(Command(c)).showInfo()),
     "list":     lambda c: print("\n".join(PackagesDir(Command(c)).list())),
     "count":    lambda c: print(PackagesDir(Command(c)).count()),
-    "releases": lambda c: print("\n".join(Package(Command(c)).releases()))
+    "releases": lambda c: print("\n".join(Package(Command(c)).releases())),
+    "path":     lambda c: print(PATH_TO_INSTALL),
+    "size":     lambda c: print(Package(Command(c)).size),
 }
 
 command = "pipios"
@@ -273,4 +310,4 @@ while command != "exit":
 
         print("")
     except Exception as e:
-        print(e, e.with_traceback)
+        print(e)
