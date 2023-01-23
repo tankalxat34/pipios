@@ -158,3 +158,4 @@ test.py
 */
 *.jpg
 pipios.py
+*.json
