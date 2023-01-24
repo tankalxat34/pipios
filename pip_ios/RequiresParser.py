@@ -37,25 +37,6 @@ class Requirements(Multiclass):
     def __init__(self, metadata_requires_dist: list):
         """Parsing `metadata.requires_dist` list"""
 
-        # self.case_conditions = {
-        #     ">":    lambda a, b: a > b,
-        #     ">=":   lambda a, b: a >= b,
-        #     "<":    lambda a, b: a < b,
-        #     "<=":   lambda a, b: a <= b,
-        #     "==":   lambda a, b: a == b,
-        #     "===":  lambda a, b: a == b,
-        #     "!=":   lambda a, b: a != b,
-        # }
-        self.case_conditions = {
-            ">":    lambda a, b: a > b,
-            ">=":   lambda a, b: a >= b,
-            "<":    lambda a, b: a < b,
-            "<=":   lambda a, b: a <= b,
-            "==":   lambda a, b: a == b,
-            "===":  lambda a, b: a == b,
-            "!=":   lambda a, b: a != b,
-        }
-
         for req in metadata_requires_dist:
             if ";" in req:
                 part1, part2 = req.split(";")
@@ -78,6 +59,8 @@ class Requirements(Multiclass):
                     name2, value2 = p.split(sign2)
                     self[name][-1]["options"][name2.strip()] = {"value": value2.strip().replace('"', ""), "sign": sign2}
 
+    def __iter__(self):
+        return iter(self.__dict__.keys())
 
 
 class Version:
@@ -119,21 +102,30 @@ class Version:
 
     def __eq__(self, __x): 
         """=="""
-        lst = [
-            self.major - __x.major,
-            self.minor - __x.minor,
-            self.micro - __x.micro,
-        ]
+        lst = [self.major - __x.major] + [0] * 2
+        try:
+            lst[1] = self.minor - __x.minor
+        except TypeError:
+            pass
+            
+        try:
+            lst[2] = self.micro - __x.micro
+        except TypeError:
+            pass
         return True if len(set(lst)) == 1 and lst[0] == 0 and (self.releaselevel == __x.releaselevel) else False
 
     def __lt__(self, __x): 
         """<"""
-        lst = [
-            self.major - __x.major,
-            self.minor - __x.minor,
-            self.micro - __x.micro,
-        ]
-        # print(lst, self.version, __x.version)
+        lst = [self.major - __x.major] + [0] * 2
+        try:
+            lst[1] = self.minor - __x.minor
+        except TypeError:
+            pass
+            
+        try:
+            lst[2] = self.micro - __x.micro
+        except TypeError:
+            pass
         return True if lst[1] < 0 or (lst[1] == 0 and lst[2] < 0) else False
 
     def __le__(self, __x): 
@@ -142,12 +134,16 @@ class Version:
 
     def __gt__(self, __x): 
         """>"""
-        lst = [
-            self.major - __x.major,
-            self.minor - __x.minor,
-            self.micro - __x.micro,
-        ]
-        # print(lst, self.version, __x.version)
+        lst = [self.major - __x.major] + [0] * 2
+        try:
+            lst[1] = self.minor - __x.minor
+        except TypeError:
+            pass
+            
+        try:
+            lst[2] = self.micro - __x.micro
+        except TypeError:
+            pass
         return True if lst[1] > 0 or (lst[1] == 0 and lst[2] > 0) else False
 
     def __ge__(self, __x): 
@@ -155,10 +151,6 @@ class Version:
         return self.__gt__(__x) or self.__eq__(__x)
     
     def __str__(self) -> str:
-        # r = ""
-        # for v in self.__dict__.keys():
-        #     r += f"{v}={self.__dict__[v]}, "
-        # return f"Version({r[:-2]}, major={self.major}, minor={self.minor}, micro={self.micro})"
         return f"Version(version='{self.version}', releaselevel='{self.releaselevel}', raw='{self.raw}', major={self.major}, minor={self.minor}, micro={self.micro})"
 
 
@@ -191,7 +183,7 @@ if __name__ == "__main__":
         '1.4.1', '1.4.2', '1.4.3', '1.4.4', 
         '1.5.0', '1.5.0rc0', '1.5.1', '1.5.2', 
         '1.5.3'
-    ] 
+    ]
 
     NUMPY_ALL_RELEASES = [
         '0.9.6', '0.9.8', '1.0', '1.0.3', '1.0.4', 
@@ -231,16 +223,22 @@ if __name__ == "__main__":
             "pytest-xdist (>=1.31) ; extra == 'test'"
         ])
 
-    """
-    1.24.0 < 1.23.2 < [False, False, True] → False
-    1.23.1 < 1.23.2 < [False, False, True] → True
-    """
+    print(r)
 
-    result = []
+    # for req in r:
+    #     print(req, len(r[req]))
 
-    version1 = Version("1.10.3")
-    for v in NUMPY_ALL_RELEASES:
-        if Version(v) <= version1:
-            result.append(v)
-    print(*result, sep="\n")
-    print(len(result))
+    v1 = Version("3.0.*")
+    print(v1)
+
+    my_v = Version("3.0.5")
+    print(my_v == v1)
+
+    # result = []
+
+    # version1 = Version("1.10.3")
+    # for v in NUMPY_ALL_RELEASES:
+    #     if Version(v) >= version1:
+    #         result.append(v)
+    # print(*result, sep="\n")
+    # print(len(result))
