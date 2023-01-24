@@ -40,6 +40,11 @@ try:
 except ModuleNotFoundError:
     from . import Exceptions
 
+try:
+    import Package
+except ModuleNotFoundError:
+    from . import Package
+
 
 class Release(App.Multiclass):
     def __init__(self, dictionary_pypi: dict):
@@ -57,13 +62,13 @@ class PyPi(App.Multiclass):
         version: str = None, 
         # _site_packages: pathlib = pathlib.Path("site-packages").absolute(), 
         _site_packages: pathlib = Constants.USER.PATH,
-        _requires_python: RequiresParser.Version = App.USER_PYTHON_VERSION,
+        _requires_python: RequiresParser.Version = RequiresParser.Version(Constants.USER.PYTHON),
         _detailed_log: bool = False
         ):
         """
         Get access to information on `pypi.org` about package
         """
-        self.name = name
+        self.name = name.strip()
         self._version = version
         self._site_packages = _site_packages
         self._requires_python = _requires_python
@@ -80,7 +85,7 @@ class PyPi(App.Multiclass):
         self._resp = json.loads(self._pypi.data)
 
         if "message" in self._resp.keys() and self._resp["message"].lower() == "not found":
-            raise Exceptions.PyPi.PackageOrVersionDoesNotExistsOnPyPi(self.name)
+            raise Exceptions.PyPi.PackageOrVersionDoesNotExistsOnPyPi(self.name, self._version)
 
         # determine attributes & reinitialisation of _version attribute for quick access
         self._version = self._resp["info"]["version"]
@@ -121,7 +126,7 @@ class PyPi(App.Multiclass):
 
     def __str__(self):
         return f"PipIOS.PyPi({self.__dict__})"
-
+    
     def _find_targz_url(self):
         """Return release with url to `.tar.gz` file by specified version"""
         release = self.urls[-1]
@@ -137,7 +142,9 @@ class PyPi(App.Multiclass):
 
             if (release["whl_tar"].platform in [self.whl_platform, Constants.PLATFORM.ANY]) and \
                 (release["packagetype"] == Constants.PACKAGETYPE.WHEEL) and \
-                self._requires_python.compare_with(release["requires_python"]):
+                    RequiresParser.is_correct_python(release):
+                # self._requires_python.compare(sing, release["requires_python"].replace(sing, "")):
+                # self._requires_python.compare_with(release["requires_python"]):
                     # RequiresParser.Version("3.10.0").compare_with(release["requires_python"]):
                 result.append(Release(release))
 
@@ -173,12 +180,80 @@ class PyPi(App.Multiclass):
                 pass
         tar.close()
 
-    def _move_files_from_unpacked_targz(self):
-        """Move all folders from the unpacked .tar.gz folder with replacement"""
-        unpacked_targz = pathlib.Path(self._site_packages / f"{self.name}-{self._version}")
+    def _identifyRealDir(self, readed_iobytes):
+        """
+        Return string dirname to unpack tar.gz archives
+        """
+        for i in range(len(readed_iobytes)):
+            if self._release_objects[i].packagetype == Constants.PACKAGETYPE.WHEEL:
+                with zipfile.ZipFile(readed_iobytes[i], 'r') as archive:
+                    for file in archive.namelist():
+                        if ".dist-info" not in str(file):
+                            # print(str(file))
+                            try:
+                                return str(file).split("/")[-2]
+                            except IndexError:
+                                return str(file)
+        return f"{self.name}-{self._version}"
+
+    def _move_files_from_unpacked_targz(self, dir_to_unpack):
+        """Move all folders from the unpacked `.tar.gz` folder with replacement"""
+        # if dir_to_unpack == "__default":
+        #     unpacked_targz = pathlib.Path(self._site_packages / f"{self.name}-{self._version}")
+        # else:
+        unpacked_targz = pathlib.Path(self._site_packages / dir_to_unpack)
+        
+        try:
+            try:
+                unpacked_targz.unlink()
+            except Exception:
+                unpacked_targz.rmdir()
+        except Exception:
+            pass
+            
+
+        if not unpacked_targz.exists():
+            unpacked_targz.mkdir()
+
         for directory in unpacked_targz.iterdir():
             shutil.move(str(directory.absolute()), str(self._site_packages))
+
         unpacked_targz.rmdir()
+    
+    def _setup_requirements(self):
+        if "requires_dist" in self.info.keys() and self.info["requires_dist"]:
+            installed_packages_list = []
+
+            r = RequiresParser.Requirements(metadata_requires_dist=self.info["requires_dist"])
+            for name in r:
+                name_replaced = name.replace("-", "_")
+                # print(name_replaced)
+
+                try:
+                    installed_pack = Package.InstalledPackage(name_replaced)
+                    print("Requirement already satisfied:", f"{name}-{installed_pack.version}", "in", self._site_packages)
+                except Exceptions.SitePackages.PackageNotFoundError:
+
+                    for section in r[name]:
+                        local_section = section
+
+                        if "python_version" in section["options"].keys() and \
+                            RequiresParser.Version(Constants.USER.PYTHON).compare(section["options"]["python_version"]["sign"], section["options"]["python_version"]["value"]):
+                            local_section = section
+                            break
+
+                    ver = RequiresParser.Version(local_section["version"])
+                    sign = local_section["sign"]
+                    
+                    version_for_installing = ver
+
+                    local_pack = PyPi(name_replaced, version_for_installing.version, self._site_packages)
+                    local_pack.setup()
+
+                    installed_packages_list.append({"name": local_pack.name, "version": version_for_installing, "sign": sign})
+            
+            return installed_packages_list
+        return []
     
     def setup(self):
         """Setup package to site-packages on your device"""
@@ -189,7 +264,7 @@ class PyPi(App.Multiclass):
                 print("  Downloading", self._release_objects[i].whl_tar.basename, end=" ")
                 print("(", *App.calculate_bytes_size(readed_iobytes[i]), ")", sep="")
                 self._unpack_as_targz(readed_iobytes[i])
-                self._move_files_from_unpacked_targz()
+                self._move_files_from_unpacked_targz(self._identifyRealDir(readed_iobytes))
                 # print("  Success!")
         
         for i in range(len(readed_iobytes)):
@@ -198,13 +273,34 @@ class PyPi(App.Multiclass):
                 print("(", *App.calculate_bytes_size(readed_iobytes[i]), ")", sep="")
                 self._unpack_as_zip(readed_iobytes[i])
                 # print("  Success!")
+        
+        installed_requirements = self._setup_requirements()
+
+        if not installed_requirements:
+            # print("Installing collected packages:", end=" ")
+            for p in installed_requirements:
+                print(p["name"], sep=" ", end="")
+            # print("\n", "Successfully installed!")
+            for p in installed_requirements:
+                print(f"{p['name']}-{p['version'].version}", sep=" ", end="")
+        else:
+            print("Successfully installed", f"{self.name}-{self._version}")
         return True
 
 
 if __name__ == "__main__":
-    pack = PyPi(name = "numpy", _site_packages = pathlib.Path("site-packages").absolute())
-    # print(pack.setup())
-    print(pack.all_versions())
+    # pack = PyPi(name = "pandas", version="1.5.2", _site_packages = pathlib.Path("site-packages").absolute())
+    # pack = PyPi(name = "python-dateutil", _site_packages = pathlib.Path("site-packages").absolute())
+    pack = PyPi(name = "hypothesis", _site_packages = pathlib.Path("site-packages").absolute())
+    print(pack.setup(), file="log.log")
+    # print(pack.all_versions())
+    # print(pack.info)
+
+    # print(pack._setup_requirements())
+
+    # print(pack._release_objects)
+    # for e in pack._release_objects:
+    #     print(e.filename)
     # print(pack._site_packages)
     # print(pack._release_objects)
     # print(pack._read_iobytes_archive())

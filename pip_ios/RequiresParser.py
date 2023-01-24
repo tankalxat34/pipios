@@ -17,6 +17,53 @@ def mapStrip(s: str):
     return s.strip()
 
 
+def findSign(s: str):
+    """
+    Return `str` with sign in requirement
+
+    `>`, `<`, `>=`, `<=`, `==`, `!=`, `~=`
+    """
+    return "".join(re.findall(r"([>|<|=|~|!])", s))
+
+
+def filterVersions(requirement: str, ver_list: list):
+    """
+    Return `list` with suitable versions by requirement
+    """
+    result = []
+
+    sign = findSign(requirement)
+    ver = requirement.replace(sign, "")
+
+    version1 = Version(ver)
+    for v in ver_list:
+        if Version(v).compare(sign, ver):
+            result.append(v)
+    return result
+
+
+def is_correct_python(release):
+    result = []
+
+    requirements = release["requires_python"]
+
+    # print(release)
+    # print(requirements)
+
+    if not requirements:
+        return True
+
+    my_v = Version(Constants.USER.PYTHON)
+    for v in requirements.split(","):
+        sign = findSign(v)
+        v_for_compare = v.replace(sign, "")
+        # print("   ", sign, v_for_compare)
+        result.append(my_v.compare(sign, v_for_compare))
+    
+    return result[0] if len(set(result)) == 1 else False
+
+
+
 class Multiclass:
     """Class with ability to set and get attributes. Could be use as parent class"""
 
@@ -32,35 +79,6 @@ class Multiclass:
     def __str__(self):
         return f"{self.__dict__}"
 
-
-class Requirements(Multiclass):
-    def __init__(self, metadata_requires_dist: list):
-        """Parsing `metadata.requires_dist` list"""
-
-        for req in metadata_requires_dist:
-            if ";" in req:
-                part1, part2 = req.split(";")
-            else:
-                part1, part2 = req, ""
-
-            name, version = part1.split()[0], part1.split()[1][1:-1]
-            sign = "".join(re.findall(r"([>|<|=|~|!])", version))
-            version = version.replace(sign, "")
-            try:
-                self[name].append({"sign": sign, "version": version, "options": dict()})
-            except Exception:
-                self[name] = list()
-                self[name].append({"sign": sign, "version": version, "options": dict()})
-
-            if part2:
-                part2 = part2.strip().replace("'", '"').split(",")
-                for p in part2:
-                    sign2 = "".join(re.findall(r"([>|<|=|~|!])", p))
-                    name2, value2 = p.split(sign2)
-                    self[name][-1]["options"][name2.strip()] = {"value": value2.strip().replace('"', ""), "sign": sign2}
-
-    def __iter__(self):
-        return iter(self.__dict__.keys())
 
 
 class Version:
@@ -95,6 +113,17 @@ class Version:
             return (self.raw.split(".")[2])
         except IndexError:
             return 0
+    
+    def compare(self, sign: str, version: str):
+        cases = {
+            ">":  lambda version: self > Version(version),
+            ">=": lambda version: self >= Version(version),
+            "<":  lambda version: self < Version(version),
+            "<=": lambda version: self <= Version(version),
+            "!=": lambda version: self != Version(version),
+            "==": lambda version: self == Version(version)
+        }
+        return cases[sign](version)
     
     def __ne__(self, __x): 
         """!="""
@@ -156,6 +185,54 @@ class Version:
 
 
 
+class Requirements(Multiclass):
+    def __init__(self, metadata_requires_dist: list):
+        """Parsing `metadata.requires_dist` list"""
+
+        for req in metadata_requires_dist:
+            if ";" in req:
+                part1, part2 = req.split(";")
+            else:
+                part1, part2 = req, ""
+
+            print("    ", "parsing:", req)
+            try:
+                name, version = part1.split()[0], part1.split()[1][1:-1]
+            except Exception:
+                name, version = part1, ""
+            if version.count(",") == 0:
+                sign = findSign(version)
+            else:
+                # print(version.split(",")[1])
+                sign = findSign(version.split(",")[1])
+                version = version.split(",")[1]
+
+            version = version.replace(sign, "")
+            name = name.strip()
+            print("       ", "version:", version)
+
+
+            try:
+                self[name].append({"sign": sign, "version": version, "options": dict()})
+            except Exception:
+                self[name] = list()
+                self[name].append({"sign": sign, "version": version, "options": dict()})
+
+            if part2:
+                part2 = part2.strip().replace("'", '"').split(",")
+                for p in part2:
+                    try:
+                        sign2 = "".join(re.findall(r"([>|<|=|~|!])", p))
+                        name2, value2 = p.split(sign2)
+                        self[name][-1]["options"][name2.strip()] = {"value": value2.strip().replace('"', ""), "sign": sign2}
+                    except Exception:
+                        pass
+
+    def __iter__(self):
+        return iter(self.__dict__.keys())
+
+
+
 
 if __name__ == "__main__":
     ALL_RELEASES = [
@@ -213,26 +290,71 @@ if __name__ == "__main__":
         ]
 
     r = Requirements([
-            'python-dateutil (>=2.8.1)', 
-            'pytz (>=2020.1)', 
-            'numpy (>=1.20.3) ; python_version < "3.10"', 
-            'numpy (>=1.21.0) ; python_version >= "3.10"',
-            'numpy (>=1.23.2) ; python_version >= "3.11"', 
-            "hypothesis (>=5.5.3) ; extra == 'test'", 
-            "pytest (>=6.0) ; extra == 'test'", 
-            "pytest-xdist (>=1.31) ; extra == 'test'"
+            "attrs (>=19.2.0)",
+            "sortedcontainers (<3.0.0,>=2.1.0)",
+            "exceptiongroup (>=1.0.0) ; python_version < \"3.11\"",
+            "black (>=19.10b0) ; extra == 'all'",
+            "click (>=7.0) ; extra == 'all'",
+            "django (>=3.2) ; extra == 'all'",
+            "dpcontracts (>=0.4) ; extra == 'all'",
+            "lark (>=0.10.1) ; extra == 'all'",
+            "libcst (>=0.3.16) ; extra == 'all'",
+            "numpy (>=1.9.0) ; extra == 'all'",
+            "pandas (>=1.0) ; extra == 'all'",
+            "pytest (>=4.6) ; extra == 'all'",
+            "python-dateutil (>=1.4) ; extra == 'all'",
+            "pytz (>=2014.1) ; extra == 'all'",
+            "redis (>=3.0.0) ; extra == 'all'",
+            "rich (>=9.0.0) ; extra == 'all'",
+            "importlib-metadata (>=3.6) ; (python_version < \"3.8\") and extra == 'all'",
+            "backports.zoneinfo (>=0.2.1) ; (python_version < \"3.9\") and extra == 'all'",
+            "tzdata (>=2022.7) ; (sys_platform == \"win32\") and extra == 'all'",
+            "click (>=7.0) ; extra == 'cli'",
+            "black (>=19.10b0) ; extra == 'cli'",
+            "rich (>=9.0.0) ; extra == 'cli'",
+            "libcst (>=0.3.16) ; extra == 'codemods'",
+            "python-dateutil (>=1.4) ; extra == 'dateutil'",
+            "django (>=3.2) ; extra == 'django'",
+            "dpcontracts (>=0.4) ; extra == 'dpcontracts'",
+            "black (>=19.10b0) ; extra == 'ghostwriter'",
+            "lark (>=0.10.1) ; extra == 'lark'",
+            "numpy (>=1.9.0) ; extra == 'numpy'",
+            "pandas (>=1.0) ; extra == 'pandas'",
+            "pytest (>=4.6) ; extra == 'pytest'",
+            "pytz (>=2014.1) ; extra == 'pytz'",
+            "redis (>=3.0.0) ; extra == 'redis'",
+            "backports.zoneinfo (>=0.2.1) ; (python_version < \"3.9\") and extra == 'zoneinfo'",
+            "tzdata (>=2022.7) ; (sys_platform == \"win32\") and extra == 'zoneinfo'"
         ])
 
-    print(r)
+    print(r["sortedcontainers"])
 
-    # for req in r:
-    #     print(req, len(r[req]))
+    # for name in r:
+    #     name_replaced = name.replace("-", "_")
+    #     print(name_replaced)
+    #     for section in r[name]:
+    #         local_section = section
 
-    v1 = Version("3.0.*")
-    print(v1)
+    #         if "python_version" in section["options"].keys() and \
+    #             Version(Constants.USER.PYTHON).compare(section["options"]["python_version"]["sign"], section["options"]["python_version"]["value"]):
+    #             local_section = section
+    #             break
 
-    my_v = Version("3.0.5")
-    print(my_v == v1)
+    #     ver = Version(local_section["version"])
+    #     sign = local_section["sign"]
+
+    #     print("   ",ver, sign)
+        
+
+    # v1 = Version("3.0.*")
+    # print(v1)
+
+    # my_v = Version("3.0.5")
+    # print(my_v == v1)
+
+    # print(is_correct_python({"requires_python": "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"}))
+
+    # print(filterVersions(">=1.10.3", NUMPY_ALL_RELEASES))
 
     # result = []
 

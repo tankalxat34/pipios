@@ -8,8 +8,8 @@ PipIOS
 
 class PyPi:
     class PackageOrVersionDoesNotExistsOnPyPi(Exception):
-        def __init__(self, name):
-            super().__init__(f"Package '{name}' does not exists on pypi.org!")
+        def __init__(self, name, ver):
+            super().__init__(f"Package '{name}' ({ver}) does not exists on pypi.org!")
 
 class SitePackages:
     class PackageNotFoundError(Exception):
