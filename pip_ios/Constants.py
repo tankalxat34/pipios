@@ -50,3 +50,12 @@ class SIZE(object):
     MB = 1024 * 1024
     GB = 1024 * 1024 * 1024
     
+class RELEASELEVEL(object):
+    FINAL = "final"
+    ALPHA = "alpha"
+    BETA = "beta"
+    PRE_CANDITATE = "preReleaseCandidate"
+
+    DEV = "developmental"
+    CANDITATE = "releaseCandidate"
+    POST_RELEASE = "postRelease"

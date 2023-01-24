@@ -34,7 +34,7 @@ try:
 except ModuleNotFoundError:
     from . import Exceptions
 
-USER_PYTHON_VERSION = RequiresParser.Version(Constants.USER.PYTHON)
+USER_PYTHON_VERSION = Constants.USER.PYTHON
 
 def calculate_bytes_size(iobytes: BytesIO):
     """Return `tuple` with rounded float number at first and humanized string at second"""

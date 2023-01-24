@@ -77,120 +77,121 @@ class Requirements(Multiclass):
                     sign2 = "".join(re.findall(r"([>|<|=|~|!])", p))
                     name2, value2 = p.split(sign2)
                     self[name][-1]["options"][name2.strip()] = {"value": value2.strip().replace('"', ""), "sign": sign2}
+
+
+
+class Version:
+    def __init__(self, version: str = "0.1.0"):
+        self.version = version
+
+        try:
+            self.releaselevel = re.findall(r"[a-z]+\d+", version)[0]
+        except IndexError:
+            self.releaselevel = ""
+
+        self.raw = version.replace(self.releaselevel, "")
+
+    @property
+    def major(self):
+        return int(self.raw.split(".")[0])
     
-    def select_versions_from(self, all_releases: list, version_requirement: str = ">=1.0.0"):
-        """
-        Selects a suitable version from the passed version list 
-        according to the specified condition in the 
-        "requirements" syntax
+    @property
+    def minor(self):
+        try:
+            return int(self.raw.split(".")[1])
+        except ValueError:
+            return (self.raw.split(".")[1])
+        except IndexError:
+            return 0
 
-        Return `list`
-        """
-        result = []
-        for v in all_releases:
-            if self.is_true_version(v, version_requirement):
-                result.append(v)
-        return result
+    @property
+    def micro(self):
+        try:
+            return int(self.raw.split(".")[2])
+        except ValueError:
+            return (self.raw.split(".")[2])
+        except IndexError:
+            return 0
     
-    def is_true_version(self, 
-            version: str, 
-            version_requirement: str):
-        """
-        Return `True` if this version is true for version requirement
-        
-        Arg `version` without `*`-symbol
-        """
-        sign = "".join(re.findall(r"([>|<|=|~|!])", version_requirement))
-        
-        v1 = version
-        v2 = version_requirement.replace(sign, "")
+    def __ne__(self, __x): 
+        """!="""
+        return not self.__eq__(__x)
 
-        if v2[-1] == "0":
-            v1 += ".0" * (version_requirement.count(".") - version.count("."))
-        
-        if v1[-1] == "0":
-            v2 += ".0" * (version.count(".") - version_requirement.count("."))
+    def __eq__(self, __x): 
+        """=="""
+        lst = [
+            self.major - __x.major,
+            self.minor - __x.minor,
+            self.micro - __x.micro,
+        ]
+        return True if len(set(lst)) == 1 and lst[0] == 0 and (self.releaselevel == __x.releaselevel) else False
 
-        if sign in ["==", "===", "!="]:
-            try:
-                return self.case_conditions[sign](v1, re.findall(v2, v1)[0])
-            except IndexError:
-                return False
+    def __lt__(self, __x): 
+        """<"""
+        lst = [
+            self.major - __x.major,
+            self.minor - __x.minor,
+            self.micro - __x.micro,
+        ]
+        # print(lst, self.version, __x.version)
+        return True if lst[1] < 0 or (lst[1] == 0 and lst[2] < 0) else False
 
-        elif sign == "~=":
-            v2_splitted = v2.split(".")
-            cond1 = f">={v2}"
+    def __le__(self, __x): 
+        """<="""
+        return self.__lt__(__x) or self.__eq__(__x)
 
-            cut_right_index = -1
-            if v2_splitted[-1][0] in Constants.StringUI.ASCII_LOWERCASE:
-                cut_right_index = -2
+    def __gt__(self, __x): 
+        """>"""
+        lst = [
+            self.major - __x.major,
+            self.minor - __x.minor,
+            self.micro - __x.micro,
+        ]
+        # print(lst, self.version, __x.version)
+        return True if lst[1] > 0 or (lst[1] == 0 and lst[2] > 0) else False
 
-            cond2 = f"=={'.'.join(v2_splitted[0:cut_right_index])}.*"
-            return self.is_true_version(version, cond1) and self.is_true_version(version, cond2)
-            
-        else:
-            
-            def less_zero(*args):
-                for arg in args:
-                    print(arg)
-                    if arg <= 0:
-                        pass
-                    else:
-                        return False
-                return True
-            
-            def more_zero(*args):
-                print(args)
-                for arg in args:
-                    if arg >= 0:
-                        return False
-                return True
+    def __ge__(self, __x): 
+        """>="""
+        return self.__gt__(__x) or self.__eq__(__x)
+    
+    def __str__(self) -> str:
+        # r = ""
+        # for v in self.__dict__.keys():
+        #     r += f"{v}={self.__dict__[v]}, "
+        # return f"Version({r[:-2]}, major={self.major}, minor={self.minor}, micro={self.micro})"
+        return f"Version(version='{self.version}', releaselevel='{self.releaselevel}', raw='{self.raw}', major={self.major}, minor={self.minor}, micro={self.micro})"
 
 
-            result = []
-
-            m1 = v1.split(".")
-            m2 = v2.split(".")
-
-            for i in range(len(m1)):
-                """
-                1.24.0 < 1.23.2 < [False, False, True] → False
-                1.23.1 < 1.23.2 < [False, False, True] → True
-                """
-                if not re.findall(r"[a-z]{1,}", v1):
-                    result.append(int(m2[i]) - int(m1[i]))
-                else:
-                    result.append(Constants.UNDEFINED)
-
-            if sign == "<":
-                answer = less_zero(*result) and Constants.UNDEFINED not in result
-
-            elif sign == ">":
-                answer = more_zero(*result) and Constants.UNDEFINED not in result
-            else:
-                answer = self.is_true_version(v1, f"=={v2}") or self.is_true_version(v1, f"{sign[0]}{v2}")
-            print(v1, v2, result, answer, sep=f" {sign} ")
-            return answer
-        
-    def is_true_version_for_requirements(self, 
-            version: str = "3.10.5", 
-            version_requirements: str = ">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*"):
-        """
-        Return `True` if specified version is truth for requirements list
-        """
-        result = []
-        
-        for v2 in version_requirements.split(","):
-            result.append(self.is_true_version(version, v2))
-        return result
-
-        
 
 
 
 if __name__ == "__main__":
-    ALL_RELEASES = ['0.1', '0.10.0', '0.10.1', '0.11.0', '0.12.0', '0.13.0', '0.13.1', '0.14.0', '0.14.1', '0.15.0', '0.15.1', '0.15.2', '0.16.0', '0.16.1', '0.16.2', '0.17.0', '0.17.1', '0.18.0', '0.18.1', '0.19.0', '0.19.1', '0.19.2', '0.2', '0.20.0', '0.20.1', '0.20.2', '0.20.3', '0.21.0', '0.21.1', '0.22.0', '0.23.0', '0.23.1', '0.23.2', '0.23.3', '0.23.4', '0.24.0', '0.24.1', '0.24.2', '0.25.0', '0.25.1', '0.25.2', '0.25.3', '0.3.0', '0.4.0', '0.4.1', '0.4.2', '0.4.3', '0.5.0', '0.6.0', '0.6.1', '0.7.0', '0.7.1', '0.7.2', '0.7.3', '0.8.0', '0.8.1', '0.9.0', '0.9.1', '1.0.0', '1.0.1', '1.0.2', '1.0.3', '1.0.4', '1.0.5', '1.1.0', '1.1.1', '1.1.2', 
-    '1.1.3', '1.1.4', '1.1.5', '1.2.0', '1.2.1', '1.2.2', '1.2.3', '1.2.4', '1.2.5', '1.3.0', '1.3.1', '1.3.2', '1.3.3', '1.3.4', '1.3.5', '1.4.0', '1.4.0rc0', '1.4.1', '1.4.2', '1.4.3', '1.4.4', '1.5.0', '1.5.0rc0', '1.5.1', '1.5.2', '1.5.3'] 
+    ALL_RELEASES = [
+        '0.1', '0.10.0', '0.10.1', '0.11.0', 
+        '0.12.0', '0.13.0', '0.13.1', '0.14.0', 
+        '0.14.1', '0.15.0', '0.15.1', '0.15.2', 
+        '0.16.0', '0.16.1', '0.16.2', '0.17.0', 
+        '0.17.1', '0.18.0', '0.18.1', '0.19.0', 
+        '0.19.1', '0.19.2', '0.2', '0.20.0', 
+        '0.20.1', '0.20.2', '0.20.3', '0.21.0', 
+        '0.21.1', '0.22.0', '0.23.0', '0.23.1', 
+        '0.23.2', '0.23.3', '0.23.4', '0.24.0', 
+        '0.24.1', '0.24.2', '0.25.0', '0.25.1', 
+        '0.25.2', '0.25.3', '0.3.0', '0.4.0', 
+        '0.4.1', '0.4.2', '0.4.3', '0.5.0', 
+        '0.6.0', '0.6.1', '0.7.0', '0.7.1', 
+        '0.7.2', '0.7.3', '0.8.0', '0.8.1', 
+        '0.9.0', '0.9.1', '1.0.0', '1.0.1', 
+        '1.0.2', '1.0.3', '1.0.4', '1.0.5', 
+        '1.1.0', '1.1.1', '1.1.2', '1.1.3', 
+        '1.1.4', '1.1.5', '1.2.0', '1.2.1', 
+        '1.2.2', '1.2.3', '1.2.4', '1.2.5', 
+        '1.3.0', '1.3.1', '1.3.2', '1.3.3', 
+        '1.3.4', '1.3.5', '1.4.0', '1.4.0rc0', 
+        '1.4.1', '1.4.2', '1.4.3', '1.4.4', 
+        '1.5.0', '1.5.0rc0', '1.5.1', '1.5.2', 
+        '1.5.3'
+    ] 
 
     NUMPY_ALL_RELEASES = [
         '0.9.6', '0.9.8', '1.0', '1.0.3', '1.0.4', 
@@ -235,26 +236,11 @@ if __name__ == "__main__":
     1.23.1 < 1.23.2 < [False, False, True] → True
     """
 
-    # print(r.select_versions_from(NUMPY_ALL_RELEASES, ">1.23.2"))
-    # print(r.select_versions_from(ALL_RELEASES, ">1.3.5"))
-    # print(r.select_versions_from(ALL_RELEASES, "<0.13.1"))
-    # print(r.select_versions_from(NUMPY_ALL_RELEASES, "~=1.23.0"))
-    print(r.is_true_version("1.24.0", "<1.23.2"))
-    print(r.is_true_version("1.23.1", "<1.23.2"))
-    print(r.is_true_version("1.22.3", "<1.23.2"))
+    result = []
 
-    # print(r.is_true_version("2.3", "~=2.2")) # True
-    # print(r.is_true_version("2.10", "~=2.2")) # True
-    # print(r.is_true_version("2.0", "~=2.2")) # True
-    # print(r.is_true_version("3.1", "~=2.2")) # False
-    
-    # print(r.is_true_version("2.5", "~=2.2"))
-    # print(r.is_true_version("1.4.5", "~=1.4.5"))
-
-    # print(r.is_true_version("3.1", "~=2.2.post3"))
-    # print(r.is_true_version("3.1", "~=1.4.5a4"))
-
-    # print(r.is_true_version("3.1", "~=2.2.0"))
-    # print(r.is_true_version("3.1", "~=1.4.5.0"))
-
-    # print(r.is_true_version_for_requirements("3.10.5", version_requirements=">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*"))
+    version1 = Version("1.10.3")
+    for v in NUMPY_ALL_RELEASES:
+        if Version(v) <= version1:
+            result.append(v)
+    print(*result, sep="\n")
+    print(len(result))
